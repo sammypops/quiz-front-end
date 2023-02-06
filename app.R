@@ -10,17 +10,85 @@
 library(shiny)
 ## app.R ##
 library(shinydashboard)
+library(mongolite)
 
 source("ui.R", local = T)
 
-server <- function(input, output) {
-  set.seed(122)
-  histdata <- rnorm(500)
+server <- function(input, output, session) {
+  session$allowReconnect("force")
   
-  output$plot1 <- renderPlot({
-    data <- histdata[seq_len(input$slider)]
-    hist(data)
+  update_ans = observe({
+    
+    dbconn = mongo(db = "quiz", collection = "answers")
+    # Create a table of data to store the name against
+    df = data.frame(from = input$from, from_mult = input$from_mult, 
+                    to = input$to, to_mult = input$to_mult,
+                    time = Sys.time(), token=session$options$appToken)
+    
+    dbconn$insert(df)
+    
+    
   })
+  
+  update_name = observe({
+    
+    dbconn = mongo(db = "quiz", collection = "names")
+    # Create a table of data to store the name against
+    df = data.frame(name = input$name, time = Sys.time(), token=session$options$appToken)
+    
+    dbconn$insert(df)
+    
+    
+  })
+  
+  calc_number = function(n,m){
+    
+    mult = switch(m,
+           `1` = 1,
+           "k" = 10^3,
+           "m" = 10^6,
+           "b" = 10^9)
+    
+    return(n*mult)
+    
+  }
+  
+  feedback = reactive({
+    
+    f = input$from
+    t = input$to
+    
+    if(any(is.na(c(f,t)))){
+      return("Answer not accepted yet...")
+    }
+    
+    f = calc_number(input$from,input$from_mult)
+    t = calc_number(input$to,input$to_mult)
+    
+    # check for answer being same
+    if(f==t){
+      return("Answer not accepted yet...")
+      
+    } else if(t<f){
+      # Check for answer being wrong way round
+      h=f
+      f=t
+      t=h
+      rm(h)
+      
+    }
+    
+    f = prettyNum(f, nsmall = 0, big.mark = ",", scientific = F  )
+    t = prettyNum(t, nsmall = 0, big.mark = ",", scientific = F  )
+    
+    
+    return(paste(f,"to",t))
+    
+    
+  })
+  
+  output$feedback = renderText(feedback())
+  
 }
 
 shinyApp(ui, server)

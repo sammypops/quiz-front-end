@@ -11,6 +11,7 @@ library(shiny)
 ## app.R ##
 library(shinydashboard)
 library(mongolite)
+library(tidyverse)
 
 source("ui.R", local = T)
 
@@ -41,6 +42,7 @@ server <- function(input, output, session) {
     
   })
   
+  # 
   calc_number = function(n,m){
     
     mult = switch(m,
@@ -88,6 +90,25 @@ server <- function(input, output, session) {
   })
   
   output$feedback = renderText(feedback())
+  
+  output$name_feedback = renderText({
+    
+    name = input$name
+    
+    dbconn = mongo(db = "quiz", collection = "names")
+    
+    name_history = dbconn$find(query = paste0('{ "token":"', session$options$appToken,'"}'),
+                               fields = '{}')
+    
+    current_name = name_history %>% 
+      arrange(desc(time)) %>% 
+      slice(1) %>% 
+      pull(name)
+    
+    current_name
+    
+    
+  })
   
 }
 
